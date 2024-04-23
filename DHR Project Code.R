@@ -1,6 +1,8 @@
 library(lubridate)
 library(dplyr)
 library(tidyverse)
+library(ggplot2)
+library(forecast)
 
 #Load in Data
 data <- read.csv(file = "train.csv")
@@ -49,9 +51,12 @@ for (i in 1:6){
 harmonics <- fourier(sales_full, K = 6)
 
 #Fit a dynamic regression model to fit. Set xreg equal to harmonics and seasonal to FALSE because seasonality is handled by the regressors.
-fit <- auto.arima(sales, xreg = harmonics, seasonal = FALSE)
+fit <- auto.arima(sales_full, xreg = harmonics, seasonal = FALSE)
+
+#Fitted vs Actual
+autoplot(fit)
 # 
-# # Forecasts next 3 years
+# # Forecasts next 6 months
 newharmonics <- fourier(sales, K = 6, h = 6)
 fc <- forecast(fit, xreg = newharmonics)
 # 
@@ -61,4 +66,31 @@ autoplot(fc, main = "Forecasting with Sales Data",ts.linetype = 'dashed') +
   geom_line(data = fortify(fc$fitted),mapping = aes(x = Index, y = Data, color = "Fitted Data"),color = "blue",linetype = "dashed")
 
 
-# DHR on Training Set and Forecasting
+#DHR ON TRAINING DATASET and FORECASTING---------------------------
+#Set up harmonic regressors of order k
+#Test different values of k, chose k where model has lowest AICc
+for (i in 1:6){
+  harmonics <- fourier(sales_train, K = i)
+  # # Fit a dynamic regression model to fit. Set xreg equal to harmonics and seasonal to FALSE because seasonality is handled by the regressors.
+  fit <- auto.arima(sales_train, xreg = harmonics, seasonal = FALSE)
+  print(fit$aicc)
+}
+#define harmonics after determining K 
+harmonics <- fourier(sales_train, K = 6)
+
+#Fit a dynamic regression model to fit. Set xreg equal to harmonics and seasonal to FALSE because seasonality is handled by the regressors.
+fit <- auto.arima(sales_train, xreg = harmonics, seasonal = FALSE)
+
+#Fitted vs Actual
+autoplot(fit)
+ 
+# Forecasts next 6 months
+newharmonics <- fourier(sales, K = 6, h = 6)
+fc <- forecast(fit, xreg = newharmonics)
+ 
+# Plot forecasts fc
+autoplot(fc)
+
+autoplot(fc, main = "Forecasting with Sales Data",ts.linetype = 'dashed') +
+  geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed") + 
+  geom_line(data = fortify(fc$fitted),mapping = aes(x = Index, y = Data, color = "Fitted Data"),color = "blue",linetype = "dashed")

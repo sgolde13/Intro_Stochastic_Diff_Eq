@@ -8,7 +8,7 @@ clc
 % Load in sales data as 48x1 double 
 %Select inport data. Select sales.dat then change output type to numeric matrix 
   
-y=sales; 
+y=fcast(sales, [36 48]);
 clf; plot([sales y])
 %% 
 
@@ -17,7 +17,7 @@ clf; plot([sales y])
  
 % We will use a trend component and 5 harmonics. %change to 4??
  
-P=[0 12./(1:4)]
+P=[0 12./(1:5)]
  
 % All of the parameters will be modelled with
 % an Integrated Random Walk (IRW).
@@ -31,6 +31,7 @@ nar=16;
 % ESTIMATING HYPER-PARAMETERS : PLEASE WAIT
  
 nvr=dhropt(y, P, TVP, nar)
+%% 
 
 % The plot compares the estimated and fitted spectra.
 
@@ -66,9 +67,7 @@ plot(fit, 'b')
 hold on
 plot(sales, 'r')
 plot([fit-sales zeros(48, 1)], 'b')
-plot([84, 84], [-50 50], 'r')  % start of interpolation
-plot([94, 94], [-50 50], 'r')  % end of interpolation
-plot([130, 130], [-50 50], 'r')  % forecasting horizon
+plot([36, 36], [-50000 50000], 'r')  % forecasting horizon
 set(gca, 'xlim', [0 length(sales)])
 title('Data, fit and residuals')
 

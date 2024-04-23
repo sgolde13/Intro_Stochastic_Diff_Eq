@@ -100,18 +100,16 @@ staples_quarterly = data.frame("Year" = c(str_c("2009", c("-01-31", "-04-30", "-
 
 staples_quarterly$Year = as.Date(staples_quarterly$Year)
 
+staples_quarterly$AR_scaled = staples_quarterly$Quarterly_Revenue*50
 
 
 ##############################################################
 ## Plot #2
-plot(sales_quarterly$Quarterly, sales_quarterly$TotalSales, type = "l", ylab = "Total Sales", xlab = "Month")
+plot(sales_quarterly$Quarterly, sales_quarterly$TotalSales, type = "l", 
+     ylab = "Total Sales", xlab = "Month", main = "Quarterly Sales", col="red")
 
-sales_dat <- sales_by_month$TotalSales
-write.table(sales_dat,
-            file = "sales.dat",
-            col.names = FALSE,
-            row.names = FALSE,
-            quote = FALSE)
+lines(staples_quarterly$Year, staples_quarterly$AR_scaled, col="blue")
 
+legend("bottomright", c("Store Sales (USD)","Staples (20K USD)"), pch = c(20, 20), col = c("red", "blue"))
 
 

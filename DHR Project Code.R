@@ -65,8 +65,6 @@ ggplot() + geom_line(data = fortify(fit$fitted), mapping = aes(x=x,y=y, color = 
 autoplot(fit$residuals)
 ggtsdiag(auto.arima(sales_full))
 
-
-
 # # Forecasts next 6 months
 newharmonics <- fourier(sales, K = 6, h = 6)
 fc <- forecast(fit, xreg = newharmonics)
@@ -96,11 +94,19 @@ fit <- auto.arima(sales_train, xreg = harmonics, seasonal = FALSE)
 autoplot(fit)
  
 # Forecasts next 6 months
-newharmonics <- fourier(sales, K = 6, h = 6)
+newharmonics <- fourier(sales_train, K = 6, h = 6)
 fc <- forecast(fit, xreg = newharmonics)
  
 # Plot forecasts fc
 autoplot(fc)
+
+autoplot(fc, main = "Forecasting with Sales Data") +
+  geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed") + ylab("Total Sales") + xlab("Time") 
+
+ggplot() + 
+  geom_line(fortify(fc$mean), mapping = aes(x = Index, y = Data)) + 
+  geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed") 
++ ylab("Total Sales") + xlab("Time") 
 
 autoplot(fc, main = "Forecasting with Sales Data",ts.linetype = 'dashed') +
   geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed") + 

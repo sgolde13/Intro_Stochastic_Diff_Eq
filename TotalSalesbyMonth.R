@@ -10,14 +10,58 @@ sales_data <- data
 sales_data$Order.Date <- dmy(sales_data$Order.Date)
 sales_data$Order.Date.Month <- month(sales_data$Order.Date)
 
+
+
+##############################################################
+## Sales by Day
 sales_by_day <- sales_data %>% group_by(Order.Date) %>% summarise(TotalSales = sum(Sales))
 
+
+
+##############################################################
+## Sales by Month
 sales_by_month_all <-
   sales_data %>%
   mutate(YearMonth = floor_date(Order.Date, "month"))
 
 sales_by_month <- sales_by_month_all %>% group_by(YearMonth) %>% summarise(TotalSales = sum(Sales))
 
+
+
+##############################################################
+## Quarterly Sales to Match Staples
+
+# from https://github.com/tidyverse/lubridate/issues/239
+# by jonboiser
+floor_date_new <- function(x, unit = c("second","minute","hour","day", "week", "month", "year", "quarter")) {
+  unit <- match.arg(unit)
+  
+  new <- switch(unit,
+                second = update(x, seconds = floor(second(x))),
+                minute = update(x, seconds = 0),
+                hour =   update(x, minutes = 0, seconds = 0),
+                day =    update(x, hours = 0, minutes = 0, seconds = 0),
+                week =   update(x, wdays = 1, hours = 0, minutes = 0, seconds = 0),
+                month =  update(x, mdays = 1, hours = 0, minutes = 0, seconds = 0),
+                year =   update(x, ydays = 1, hours = 0, minutes = 0, seconds = 0),
+                # modified mdays = 1 to = 31 so that the dates are parsed like the
+                # Staples data below
+                quarter = update(x, months = ceiling(month(x)/3) * 3 - 2, mdays = 31)
+  )
+  new
+}
+
+
+sales_quarterly_all <-
+  sales_data %>%
+  mutate(Quarterly = floor_date_new(Order.Date, "quarter"))
+
+sales_quarterly <- sales_quarterly_all %>% group_by(Quarterly) %>% summarise(TotalSales = sum(Sales))
+
+
+
+##############################################################
+## Plot #1
 plot(sales_by_month$YearMonth, sales_by_month$TotalSales, type = "l", ylab = "Total Sales", xlab = "Month")
 
 sales_dat <- sales_by_month$TotalSales
@@ -54,8 +98,20 @@ staples_quarterly = data.frame("Year" = c(str_c("2009", c("-01-31", "-04-30", "-
                                                        2972, 4363, 4032, 5355, 4497, 4149, 3905))
   # revenue in terms of Millions of USD
 
+staples_quarterly$Year = as.Date(staples_quarterly$Year)
 
 
+
+##############################################################
+## Plot #2
+plot(sales_quarterly$Quarterly, sales_quarterly$TotalSales, type = "l", ylab = "Total Sales", xlab = "Month")
+
+sales_dat <- sales_by_month$TotalSales
+write.table(sales_dat,
+            file = "sales.dat",
+            col.names = FALSE,
+            row.names = FALSE,
+            quote = FALSE)
 
 
 

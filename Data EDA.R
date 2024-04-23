@@ -1,35 +1,33 @@
+##############################################################
+##############################################################
+##############################################################
+## Sales Data Exploratory Data Analysis and *.dat Preparation
+##
+## Outline:
+##    1. Importation, Functions, and Packages
+##    2. Date Parsing
+##    3. Staples, Inc. Revenue 2010 - 2017
+##    4. Plots
+##
+##
+##
+
+
+##############################################################
+##############################################################
+## 1. Importation, Functions, and Packages
 library(lubridate)
 library(dplyr)
 library(tidyverse)
 
-#The following code takes in Sales data 
-#and summarizes total sales by month
 
 data <- read.csv(file = "train.csv")
 sales_data <- data
+
+# change the order date to Day-Month-Year or Month format
 sales_data$Order.Date <- dmy(sales_data$Order.Date)
 sales_data$Order.Date.Month <- month(sales_data$Order.Date)
 
-
-
-##############################################################
-## Sales by Day
-sales_by_day <- sales_data %>% group_by(Order.Date) %>% summarise(TotalSales = sum(Sales))
-
-
-
-##############################################################
-## Sales by Month
-sales_by_month_all <-
-  sales_data %>%
-  mutate(YearMonth = floor_date(Order.Date, "month"))
-
-sales_by_month <- sales_by_month_all %>% group_by(YearMonth) %>% summarise(TotalSales = sum(Sales))
-
-
-
-##############################################################
-## Quarterly Sales to Match Staples
 
 # from https://github.com/tidyverse/lubridate/issues/239
 # by jonboiser
@@ -52,6 +50,29 @@ floor_date_new <- function(x, unit = c("second","minute","hour","day", "week", "
 }
 
 
+
+##############################################################
+##############################################################
+## 2. Date Parsing
+## The following code takes in Sales data 
+## and summarizes total sales by month
+
+##############################################################
+## Sales by Day
+sales_by_day <- sales_data %>% group_by(Order.Date) %>% summarise(TotalSales = sum(Sales))
+
+
+##############################################################
+## Sales by Month
+sales_by_month_all <-
+  sales_data %>%
+  mutate(YearMonth = floor_date(Order.Date, "month"))
+
+sales_by_month <- sales_by_month_all %>% group_by(YearMonth) %>% summarise(TotalSales = sum(Sales))
+
+
+##############################################################
+## Quarterly Sales to Match Staples
 sales_quarterly_all <-
   sales_data %>%
   mutate(Quarterly = floor_date_new(Order.Date, "quarter"))
@@ -61,20 +82,8 @@ sales_quarterly <- sales_quarterly_all %>% group_by(Quarterly) %>% summarise(Tot
 
 
 ##############################################################
-## Plot #1
-plot(sales_by_month$YearMonth, sales_by_month$TotalSales, type = "l", ylab = "Total Sales", xlab = "Month")
-
-sales_dat <- sales_by_month$TotalSales
-write.table(sales_dat,
-    file = "sales.dat",
-            col.names = FALSE,
-            row.names = FALSE,
-            quote = FALSE)
-
-
-
 ##############################################################
-## Staples, Inc. Revenue 2010 - 2017
+## 3. Staples, Inc. Revenue 2010 - 2017
 ## source: https://www.macrotrends.net/stocks/delisted/SPLS/Staples,%20Inc./revenue
 
 staples_annual = data.frame("Year" = c(2009, str_c(201, c(0:7)) ),
@@ -103,13 +112,48 @@ staples_quarterly$Year = as.Date(staples_quarterly$Year)
 staples_quarterly$AR_scaled = staples_quarterly$Quarterly_Revenue*50
 
 
+
 ##############################################################
-## Plot #2
+##############################################################
+## 4. Plots
+
+##############################################################
+## Sales by Month vs. Total Sales
+plot(sales_by_month$YearMonth, sales_by_month$TotalSales, type = "l", ylab = "Total Sales", xlab = "Month")
+
+sales_dat <- sales_by_month$TotalSales
+write.table(sales_dat,
+            file = "sales.dat",
+            col.names = FALSE,
+            row.names = FALSE,
+            quote = FALSE)
+
+
+##############################################################
+## Quarterly vs. Total Sales + Staples
 plot(sales_quarterly$Quarterly, sales_quarterly$TotalSales, type = "l", 
      ylab = "Total Sales", xlab = "Month", main = "Quarterly Sales", col="red")
 
 lines(staples_quarterly$Year, staples_quarterly$AR_scaled, col="blue")
 
 legend("bottomright", c("Store Sales (USD)","Staples (20K USD)"), pch = c(20, 20), col = c("red", "blue"))
+
+
+
+##############################################################
+##############################################################
+## 5. Tables
+round((table(data$Sub.Category, data$Category) / 9800)*100, 1)
+
+round((table(data$Sub.Category) / 9800)*100, 1) %>% 
+  as.data.frame() %>% 
+  arrange(desc(Freq))
+
+round((table(data$Category, data$Segment) / 9800)*100, 1)
+
+
+
+
+
 
 

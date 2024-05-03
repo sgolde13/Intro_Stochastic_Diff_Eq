@@ -3,7 +3,6 @@ library(dplyr)
 library(tidyverse)
 library(ggplot2)
 library(forecast)
-library(ggfortify)
 
 #Load in Data
 data <- read.csv(file = "train.csv")
@@ -21,7 +20,6 @@ sales_by_month_all <-
   mutate(YearMonth = floor_date(Order.Date, "month"))
 sales_by_month <- sales_by_month_all %>% group_by(YearMonth) %>% summarise(TotalSales = sum(Sales))
 
-
 #Total Sales by Week
 sales_data$Week <- week(sales_data$Order.Date)
 sales_data$Year <- year(sales_data$Order.Date)
@@ -30,7 +28,7 @@ sales_by_week <- sales_data %>% group_by(Year, Week) %>% summarise(TotalSales = 
 #Data Clean Up
 outlier <- which(sales_data$Sales == max(sales_data$Sales))
 sales_data <- sales_data[-outlier,] #remove outlier
-#sales_data <- sales_data[sales_data$Category != "Technology",] #remove technology 
+sales_data <- sales_data[sales_data$Category != "Technology",] #remove technology 
 
 #Number of Sales by Month - potential to look at this
 sales_by_month_count <- sales_by_month_all %>% group_by(YearMonth) %>% summarise(TotalSales = n())
@@ -39,7 +37,6 @@ sales_by_month_count <- sales_by_month_all %>% group_by(YearMonth) %>% summarise
 sales_full <- ts(sales_by_month$TotalSales, frequency = 12) #all data
 sales_train <- ts(sales_by_month$TotalSales[1:42], frequency = 12) #subset for forecasting
 
-autoplot(stl(sales_full, s.window = 'periodic'), ts.colour = 'black')
 
 #DHR ON FULL DATASET-----------------------------------------
 #Set up harmonic regressors of order k
@@ -57,14 +54,8 @@ harmonics <- fourier(sales_full, K = 6)
 fit <- auto.arima(sales_full, xreg = harmonics, seasonal = FALSE)
 
 #Fitted vs Actual
-ggplot() + geom_line(data = fortify(fit$fitted), mapping = aes(x=x,y=y, color = "Model Fit")) + 
-  geom_line(data = fortify(sales_full), mapping = aes(x = x, y=y, color = "Actual Data"))+
-  theme(legend.title = element_blank()) + ylab("Total Sales") + xlab("Time") + ggtitle("DHR Model Fit")
-
-#Residuals Plots
-autoplot(fit$residuals)
-ggtsdiag(auto.arima(sales_full))
-
+autoplot(fit)
+# 
 # # Forecasts next 6 months
 newharmonics <- fourier(sales, K = 6, h = 6)
 fc <- forecast(fit, xreg = newharmonics)
@@ -99,14 +90,6 @@ fc <- forecast(fit, xreg = newharmonics)
  
 # Plot forecasts fc
 autoplot(fc)
-
-autoplot(fc, main = "Forecasting with Sales Data") +
-  geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed") + ylab("Total Sales") + xlab("Time") 
-
-ggplot() + 
-  geom_line(fortify(fc$mean), mapping = aes(x = Index, y = Data)) + 
-  geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed") 
-+ ylab("Total Sales") + xlab("Time") 
 
 autoplot(fc, main = "Forecasting with Sales Data",ts.linetype = 'dashed') +
   geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed") + 

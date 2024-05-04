@@ -183,15 +183,16 @@ sales_data <- sales_data[-outlier,] #remove outlier
 sales_by_month_count <- sales_by_month_all %>% group_by(YearMonth) %>% summarise(TotalSales = n())
 
 # Create a time series object of sales by month
-sales_full <- ts(sales_by_month$TotalSales, frequency = 12) #all data
-sales_train <- ts(sales_by_month$TotalSales[1:42], frequency = 12) #subset for forecasting
+sales_full <- ts(sales_by_month$TotalSales, frequency = 12, start = c(2015,1)) #all data
+sales_train <- ts(sales_by_month$TotalSales[1:42], frequency = 12,start = c(2015,1)) #subset for forecasting
+sales_train2 <- ts(sales_by_month$TotalSales[7:48], frequency = 12,start = c(2015,7)) #subset for forecasting
 
 
 ##############################################################
 ## Plots
 
 # Using the forecast package
-autoplot(stl(sales_full, s.window = 'periodic'), ts.colour = 'black')
+autoplot(stl(sales_full, s.window = 'periodic'), ts.colour = 'black', xlab = "Year")
 
 
 # Using ggplot2
@@ -250,20 +251,20 @@ harmonics <- fourier(sales_full, K = 6)
 # Fit a dynamic regression model to fit. Set xreg equal to harmonics and 
 # seasonal to FALSE because seasonality is handled by the regressors.
 fit <- auto.arima(sales_full, xreg = harmonics, seasonal = FALSE)
-
+fit <- tslm(sales_full ~ fourier(sales_full, K = c(6, 6)))
 
 ##############################################################
 ## Fitted vs Actual
-ggplot() + geom_line(data = fortify(fit$fitted), mapping = aes(x=x,y=y, color = "Model Fit")) + 
-  geom_line(data = fortify(sales_full), mapping = aes(x = x, y=y, color = "Actual Data"))+
+ggplot() + geom_line(data = fortify(fit$fitted), mapping = aes(x=Index,y=Data, color = "Model Fit")) + 
+  geom_line(data = fortify(sales_full), mapping = aes(x = Index, y=Data, color = "Actual Data"))+
   theme(legend.title = element_blank()) + ylab("Total Sales") + xlab("Time") + ggtitle("DHR Model Fit")
 
 #Residuals Plots
 autoplot(fit$residuals)
 ggtsdiag(auto.arima(sales_full))
 
-# # Forecasts next 6 months
-newharmonics <- fourier(sales, K = 6, h = 6)
+# # Forecasts next year
+newharmonics <- fourier(sales_full, K = 6, h = 12)
 fc <- forecast(fit, xreg = newharmonics)
 # 
 # # Plot forecasts fc
@@ -297,14 +298,51 @@ fc <- forecast(fit, xreg = newharmonics)
 # Plot forecasts fc
 autoplot(fc)
 
+#Forecasting Plot
 autoplot(fc, main = "Forecasting with Sales Data") +
-  geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed") + ylab("Total Sales") + xlab("Time") 
+  geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed")+
+  ylab("Total Sales") + xlab("Time") +  scale_x_continuous(name = "Time",labels = c(2015,2016,2017, 2018,2019))
 
-ggplot() + 
-  geom_line(fortify(fc$mean), mapping = aes(x = Index, y = Data)) + 
-  geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed") 
-+ ylab("Total Sales") + xlab("Time") 
+plot(fc, main = "Forecasting with Sales Data", xlab = "Time", ylab = "Total Sales")
+lines(sales_full, lty = 2)
 
-autoplot(fc, main = "Forecasting with Sales Data",ts.linetype = 'dashed') +
-  geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed") + 
-  geom_line(data = fortify(fc$fitted),mapping = aes(x = Index, y = Data, color = "Fitted Data"),color = "blue",linetype = "dashed")
+# ggplot() + 
+#   geom_line(fortify(fc$mean), mapping = aes(x = Index, y = Data)) + 
+#   geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed") 
+# + ylab("Total Sales") + xlab("Time") 
+# 
+# autoplot(fc, main = "Forecasting with Sales Data",ts.linetype = 'dashed') +
+#   geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed") + 
+#   geom_line(data = fortify(fc$fitted),mapping = aes(x = Index, y = Data, color = "Fitted Data"),color = "blue",linetype = "dashed")
+
+#Backcasting with Sales Data --------------------------------
+
+#define harmonics after determining K 
+harmonics <- fourier(sales_train2, K = 6)
+
+#Fit a dynamic regression model to fit. Set xreg equal to harmonics and seasonal to FALSE because seasonality is handled by the regressors.
+fit <- auto.arima(sales_train2, xreg = harmonics, seasonal = FALSE)
+
+#Fitted vs Actual
+autoplot(fit)
+
+# backcast prev 6 months
+f = frequency(sales_train2)
+
+revx <- ts(rev(sales_train2), frequency=f)
+fc <- forecast(auto.arima(revx), h = 6)
+plot(fc)
+
+# Reverse time again
+h = 6
+fc$mean <- ts(rev(fc$mean),end=tsp(sales_train2)[1] - 1/f, frequency=f)
+fc$upper <- fc$upper[h:1,]
+fc$lower <- fc$lower[h:1,]
+fc$x <- sales_train2
+# Plot result
+plot(fc, xlim=c(tsp(sales_train2)[1]-h/f, tsp(sales_train2)[2]), main = "Backcasting with Sales Data", xlab = "Time", ylab = "Total Sales", ylim = c(0,120000))
+lines(sales_full, lty = 2)
+
+#AR Spectrum Plot
+spec.ar(sales_full, main = "Sales Data \n AR (14) Spectrum" ) #Order chosen by AIC
+

@@ -251,8 +251,6 @@ harmonics <- fourier(sales_full, K = 6)
 # Fit a dynamic regression model to fit. Set xreg equal to harmonics and 
 # seasonal to FALSE because seasonality is handled by the regressors.
 fit <- auto.arima(sales_full, xreg = harmonics, seasonal = FALSE)
-fit <- tslm(sales_full ~ fourier(sales_full, K = c(6, 6)))
-
 ##############################################################
 ## Fitted vs Actual
 ggplot() + geom_line(data = fortify(fit$fitted), mapping = aes(x=Index,y=Data, color = "Model Fit")) + 
@@ -260,7 +258,7 @@ ggplot() + geom_line(data = fortify(fit$fitted), mapping = aes(x=Index,y=Data, c
   theme(legend.title = element_blank()) + ylab("Total Sales") + xlab("Time") + ggtitle("DHR Model Fit")
 
 #Residuals Plots
-autoplot(fit$residuals)
+autoplot(fit)
 ggtsdiag(auto.arima(sales_full))
 
 # # Forecasts next year

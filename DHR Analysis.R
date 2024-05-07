@@ -7,11 +7,11 @@
 ##    1. Importation, Functions, and Packages
 ##    2. Date Parsing
 ##    3. Staples, Inc. Revenue 2010 - 2017
-##    4. Staples, Inc. Revenue 2010 - 2017
+##    4. ODP Revenue 2010 - 2023
 ##    5. Data Preparation
 ##    6. DHR on Full Data Set
-##
-##
+##    7. DHR on Training Dataset and Forecasting
+##    8. Backcasting with Sales Data
 ##
 
 
@@ -37,7 +37,7 @@ sales_data$Order.Date.Month <- month(sales_data$Order.Date)
 
 # from https://github.com/tidyverse/lubridate/issues/239
 # by jonboiser
-floor_date_new <- function(x, unit = c("second","minute","hour","day", "week", "month", "year", "quarter")) {
+floor_date_new <- function(x, unit = c("second","minute","hour","day", "week", "month", "year", "quarter"), mdays) {
   unit <- match.arg(unit)
   
   new <- switch(unit,
@@ -50,7 +50,7 @@ floor_date_new <- function(x, unit = c("second","minute","hour","day", "week", "
                 year =   update(x, ydays = 1, hours = 0, minutes = 0, seconds = 0),
                 # modified mdays = 1 to = 31 so that the dates are parsed like the
                 # Staples data below
-                quarter = update(x, months = ceiling(month(x)/3) * 3 - 2, mdays = 31)
+                quarter = update(x, months = ceiling(month(x)/3) * 3 - 2, mdays = mdays)
   )
   new
 }
@@ -85,12 +85,23 @@ sales_by_week <- sales_data %>% group_by(Year, Week) %>% summarise(TotalSales = 
 
 
 ##############################################################
-## Quarterly Sales to Match Staples
+## Quarterly Sales
 sales_quarterly_all <-
   sales_data %>%
-  mutate(Quarterly = floor_date_new(Order.Date, "quarter"))
+  mutate(Quarterly = floor_date_new(Order.Date, "quarter", 91))
+  # mdays = 31 to align with Staples
+  # mdays = 91 to align with ODP
 
 sales_quarterly <- sales_quarterly_all %>% group_by(Quarterly) %>% summarise(TotalSales = sum(Sales))
+
+
+##############################################################
+## Total Annual Sales
+sales_by_year_all <-
+  sales_data %>%
+  mutate(YearMonth = floor_date(Order.Date, "year"))
+
+sales_by_year_all %>% group_by(YearMonth) %>% summarise(TotalSales = sum(Sales))
 
 
 
@@ -209,7 +220,8 @@ spacing = c(1, 5, 9, 13, 17, 21, 25, 29, 33, 36, 40, 44, 48)
 # subplots
 data_plot = ggplot(data = full_stl) + theme_minimal() +
   geom_line(aes(x = 1:nrow(full_stl), y = data )) +
-  labs(title = "Data", x ="", y = "") + 
+  geom_line(aes(x = 1:nrow(full_stl), y = trend ), color = "#CC6666", size=1) +
+  labs(title = "Data with Trendline", x ="", y = "") + 
   theme(axis.text.x=element_blank(), 
         axis.ticks.x=element_blank())
 
@@ -232,6 +244,7 @@ grid.arrange(data_plot, seasonal_plot, remainder_plot, nrow = 3)
 # https://stackoverflow.com/questions/65985705/defining-grid-arrange-so-the-third-plot-is-in-the-middle
 
 
+
 ##############################################################
 ##############################################################
 ## 6. DHR on Full Data Set
@@ -251,58 +264,106 @@ harmonics <- fourier(sales_full, K = 6)
 # Fit a dynamic regression model to fit. Set xreg equal to harmonics and 
 # seasonal to FALSE because seasonality is handled by the regressors.
 fit <- auto.arima(sales_full, xreg = harmonics, seasonal = FALSE)
+
+
 ##############################################################
+## Plots
+
 ## Fitted vs Actual
-ggplot() + geom_line(data = fortify(fit$fitted), mapping = aes(x=Index,y=Data, color = "Model Fit")) + 
-  geom_line(data = fortify(sales_full), mapping = aes(x = Index, y=Data, color = "Actual Data"))+
-  theme(legend.title = element_blank()) + ylab("Total Sales") + xlab("Time") + ggtitle("DHR Model Fit")
+#ggplot() + geom_line(data = fortify(fit$fitted), mapping = aes(x=Index,y=Data, color = "Model Fit")) + 
+#  geom_line(data = fortify(sales_full), mapping = aes(x = Index, y=Data, color = "Actual Data"))+
+#  theme(legend.title = element_blank()) + 
+#  ylab("Total Sales") + xlab("Time") + ggtitle("DHR Model Fit")
 
-#Residuals Plots
+
+fit_v_actual = ggplot() + theme_minimal() +
+  theme(legend.position = 'bottom', legend.direction = "horizontal") +
+  geom_line(data = fortify(fit$fitted), mapping = aes(x=Index,y=Data, color = "Model Fit")) + 
+  geom_line(data = fortify(sales_full), mapping = aes(x = Index, y=Data, color = "Actual Data")) +
+  labs(title = "DHR Model Fit", color='',
+       x ="Time Aggregated by Month", y = "Total Sales (USD)")
+  #theme(axis.text.x = element_text(angle = 30)) #+
+  #scale_x_continuous(breaks = spacing, labels = dates[spacing])
+
+
+## Residuals Plots
 autoplot(fit)
-ggtsdiag(auto.arima(sales_full))
+ggtsdiag(auto.arima(sales_full)) + theme_minimal()
 
-# # Forecasts next year
+
+## Forecasts next year and plot forecasts (fc)
 newharmonics <- fourier(sales_full, K = 6, h = 12)
 fc <- forecast(fit, xreg = newharmonics)
-# 
-# # Plot forecasts fc
-autoplot(fc, main = "Forecasting with Sales Data",ts.linetype = 'dashed') +
-  geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed") + 
-  geom_line(data = fortify(fc$fitted),mapping = aes(x = Index, y = Data, color = "Fitted Data"),color = "blue",linetype = "dashed")
+
+autoplot(fc, main = "Forecasting with Sales Data",ts.linetype = 'dashed') +  theme_minimal() +
+  geom_line(data = fortify(sales_full), mapping = aes(x = Index, y = Data, color = "Actual Data"),
+            color = "black") + 
+  geom_line(data = fortify(fc$fitted), mapping = aes(x = Index, y = Data, color = "Fitted Data"),
+            color = "blue", linetype = "dashed", size=1) +
+  labs(title = "DHR Model Fit with Forecasts Over 2019", color='',
+       x ="Time Aggregated by Month", y = "Total Sales (USD)")
 
 
-#DHR ON TRAINING DATASET and FORECASTING---------------------------
-#Set up harmonic regressors of order k
-#Test different values of k, chose k where model has lowest AICc
+
+##############################################################
+##############################################################
+## 7. DHR on Training Dataset and Forecasting
+
+## Set up harmonic regressors of order k
+## Test different values of k, chose k where model has lowest AICc
 for (i in 1:6){
   harmonics <- fourier(sales_train, K = i)
-  # # Fit a dynamic regression model to fit. Set xreg equal to harmonics and seasonal to FALSE because seasonality is handled by the regressors.
+  ## Fit a dynamic regression model to fit. Set xreg equal to harmonics 
+  ## and seasonal to FALSE because seasonality is handled by the regressors.
   fit <- auto.arima(sales_train, xreg = harmonics, seasonal = FALSE)
   print(fit$aicc)
 }
-#define harmonics after determining K 
+## define harmonics after determining K 
 harmonics <- fourier(sales_train, K = 6)
 
-#Fit a dynamic regression model to fit. Set xreg equal to harmonics and seasonal to FALSE because seasonality is handled by the regressors.
-fit <- auto.arima(sales_train, xreg = harmonics, seasonal = FALSE)
 
-#Fitted vs Actual
-autoplot(fit)
+## Fit a dynamic regression model to fit. Set xreg equal to harmonics
+## and seasonal to FALSE because seasonality is handled by the regressors.
+fit <- auto.arima(sales_train, xreg = harmonics, seasonal = FALSE)
  
-# Forecasts next 6 months
+
+## Forecasts next 6 months
 newharmonics <- fourier(sales_train, K = 6, h = 6)
 fc <- forecast(fit, xreg = newharmonics)
- 
-# Plot forecasts fc
-autoplot(fc)
 
-#Forecasting Plot
-autoplot(fc, main = "Forecasting with Sales Data") +
-  geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed")+
-  ylab("Total Sales") + xlab("Time") +  scale_x_continuous(name = "Time",labels = c(2015,2016,2017, 2018,2019))
 
-plot(fc, main = "Forecasting with Sales Data", xlab = "Time", ylab = "Total Sales")
-lines(sales_full, lty = 2)
+##############################################################
+## Plots
+
+## Fitted vs Actual
+autoplot(fit) + theme_minimal() +
+  labs(title = "DHR Model Fit on Training Dataset", 
+       x ="Time Aggregated by Month", y = "Total Sales (USD)")
+
+
+## Plot forecasts fc
+autoplot(fc) + theme_minimal()
+
+
+## Forecasting Plot
+autoplot(fc) +  theme_minimal() +
+  geom_line(data = fortify(sales_full), mapping = aes(x = Index, y = Data, color = "Actual Data"),
+            color = "black", linetype = "dashed") + 
+  geom_line(data = fortify(fc$fitted), mapping = aes(x = Index, y = Data, color = "Fitted Data"),
+            color = "blue", linetype = "dashed") +
+  labs(title = "DHR Model Fit on Training Dataset \nwith Forecasts Over 2019",
+       x ="Time Aggregated by Month", y = "Total Sales (USD)")
+
+
+plot(fc, main = "Forecasting with Sales Data", xlab = "Time", ylab = "Total Sales") +
+  lines(sales_full, lty = 2)
+
+
+#autoplot(fc, main = "Forecasting with Sales Data") +
+#  geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),
+#            color = "black",linetype = "dashed")+
+#  ylab("Total Sales") + xlab("Time") +  scale_x_continuous(name = "Time", labels = c(2015,2016,2017, 2018,2019))
+
 
 # ggplot() + 
 #   geom_line(fortify(fc$mean), mapping = aes(x = Index, y = Data)) + 
@@ -313,34 +374,69 @@ lines(sales_full, lty = 2)
 #   geom_line(data = fortify(sales_full),mapping = aes(x = Index, y = Data, color = "Actual Data"),color = "black",linetype = "dashed") + 
 #   geom_line(data = fortify(fc$fitted),mapping = aes(x = Index, y = Data, color = "Fitted Data"),color = "blue",linetype = "dashed")
 
-#Backcasting with Sales Data --------------------------------
 
-#define harmonics after determining K 
+
+##############################################################
+##############################################################
+## 8. Backcasting with Sales Data
+
+# define harmonics after determining K 
 harmonics <- fourier(sales_train2, K = 6)
 
-#Fit a dynamic regression model to fit. Set xreg equal to harmonics and seasonal to FALSE because seasonality is handled by the regressors.
+# Fit a dynamic regression model to fit. Set xreg equal to harmonics and 
+# seasonal to FALSE because seasonality is handled by the regressors.
 fit <- auto.arima(sales_train2, xreg = harmonics, seasonal = FALSE)
-
-#Fitted vs Actual
-autoplot(fit)
 
 # backcast prev 6 months
 f = frequency(sales_train2)
 
 revx <- ts(rev(sales_train2), frequency=f)
 fc <- forecast(auto.arima(revx), h = 6)
-plot(fc)
+#plot(fc)
 
 # Reverse time again
 h = 6
-fc$mean <- ts(rev(fc$mean),end=tsp(sales_train2)[1] - 1/f, frequency=f)
+fc$mean <- ts(rev(fc$mean), end=tsp(sales_train2)[1] - 1/f, frequency=f)
 fc$upper <- fc$upper[h:1,]
 fc$lower <- fc$lower[h:1,]
 fc$x <- sales_train2
-# Plot result
-plot(fc, xlim=c(tsp(sales_train2)[1]-h/f, tsp(sales_train2)[2]), main = "Backcasting with Sales Data", xlab = "Time", ylab = "Total Sales", ylim = c(0,120000))
-lines(sales_full, lty = 2)
 
-#AR Spectrum Plot
-spec.ar(sales_full, main = "Sales Data \n AR (14) Spectrum" ) #Order chosen by AIC
+
+
+##############################################################
+## Plots
+
+## Fitted vs Actual
+autoplot(fit) + theme_minimal() +
+  labs(title = "DHR Model Fit on Training Dataset", 
+       x ="Time Aggregated by Month", y = "Total Sales (USD)")
+
+#autoplot(fit)
+
+plot(fc, xlim=c(tsp(sales_train2)[1]-h/f, tsp(sales_train2)[2]), main = "Backcasting with Sales Data", xlab = "Time", ylab = "Total Sales", ylim = c(0,120000)) + 
+  lines(sales_full, lty = 2)
+
+## Plot forecasts fc
+autoplot(fc) + theme_minimal() +
+  labs(title = "DHR Model Fit on Training Dataset", 
+       x ="Time Aggregated by Month", y = "Total Sales (USD)")
+
+
+## Forecasting Plot
+autoplot(fc) +  theme_minimal() +
+  geom_line(data = fortify(sales_full), mapping = aes(x = Index, y = Data, color = "Actual Data"),
+            color = "black", linetype = "dashed") + 
+  geom_line(data = fortify(fc$fitted), mapping = aes(x = Index, y = Data, color = "Fitted Data"),
+            color = "blue", linetype = "dashed") +
+  labs(title = "DHR Model Fit on Training Dataset \nwith Forecasts Over 2019",
+       x ="Time Aggregated by Month", y = "Total Sales (USD)")
+
+
+# AR Spectrum Plot
+# Order chosen by AIC
+spec.ar(sales_full, main = "Sales Data \n AR (14) Spectrum" )
+
+
+
+
 

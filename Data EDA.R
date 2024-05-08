@@ -32,7 +32,7 @@ sales_data$Order.Date.Month <- month(sales_data$Order.Date)
 
 # from https://github.com/tidyverse/lubridate/issues/239
 # by jonboiser
-floor_date_new <- function(x, unit = c("second","minute","hour","day", "week", "month", "year", "quarter")) {
+floor_date_new <- function(x, unit = c("second","minute","hour","day", "week", "month", "year", "quarter"), mdays) {
   unit <- match.arg(unit)
   
   new <- switch(unit,
@@ -45,7 +45,7 @@ floor_date_new <- function(x, unit = c("second","minute","hour","day", "week", "
                 year =   update(x, ydays = 1, hours = 0, minutes = 0, seconds = 0),
                 # modified mdays = 1 to = 31 so that the dates are parsed like the
                 # Staples data below
-                quarter = update(x, months = ceiling(month(x)/3) * 3 - 2, mdays = 31)
+                quarter = update(x, months = ceiling(month(x)/3) * 3 - 2, mdays = mdays)
   )
   new
 }
@@ -85,7 +85,9 @@ sales_by_year_all %>% group_by(YearMonth) %>% summarise(TotalSales = sum(Sales))
 ## Quarterly Sales to Match Staples
 sales_quarterly_all <-
   sales_data %>%
-  mutate(Quarterly = floor_date_new(Order.Date, "quarter"))
+  mutate(Quarterly = floor_date_new(Order.Date, "quarter", 31))
+  # mdays = 31 to align with Staples
+  # mdays = 91 to align with ODP
 
 sales_quarterly <- sales_quarterly_all %>% group_by(Quarterly) %>% summarise(TotalSales = sum(Sales))
 
@@ -164,7 +166,7 @@ odp_quarterly$Year = as.Date(odp_quarterly$Year)
 
 odp_quarterly$AR_scaled = odp_quarterly$Quarterly_Revenue*50
 
-
+1000000/50
 
 
 ##############################################################
@@ -189,8 +191,45 @@ plot(sales_quarterly$Quarterly, sales_quarterly$TotalSales, type = "l",
      ylab = "Total Sales", xlab = "Month", main = "Quarterly Sales", col="red")
 
 lines(staples_quarterly$Year, staples_quarterly$AR_scaled, col="blue")
-
 legend("bottomright", c("Store Sales (USD)","Staples (20K USD)"), pch = c(20, 20), col = c("red", "blue"))
+
+
+# x-axis labels and label spacing
+dates = format(sales_quarterly$Quarterly, format="%b %y") %>% as.character()
+# https://www.statology.org/r-date-format/
+
+spacing = c(2, 4, 6, 8, 10, 12, 14, 16)
+
+
+ggplot() + theme_minimal() +
+  geom_line(data = sales_quarterly, aes(x = 1:nrow(sales_quarterly), y = TotalSales )) +
+  geom_line(data = staples_quarterly[25:35,], aes(x = 1:nrow(staples_quarterly[25:35,]), 
+                                                  y = AR_scaled ), color = "#CC6666", size=1) +
+  labs(title = "Quarterly Sales with Staples Sales (20x USD)",  
+       x ="Time Aggregated by Quarters", y = "Total Sales (USD)") +
+  theme(axis.text.x = element_text(angle = 30)) +
+  scale_x_continuous(breaks = spacing, labels = dates[spacing])
+
+
+
+##############################################################
+## Quarterly vs. Total Sales + ODP
+
+# x-axis labels and label spacing
+dates = format(sales_quarterly$Quarterly, format="%b %y") %>% as.character()
+# https://www.statology.org/r-date-format/
+
+spacing = c(2, 4, 6, 8, 10, 12, 14, 16)
+
+
+ggplot() + theme_minimal() +
+  geom_line(data = sales_quarterly, aes(x = 1:nrow(sales_quarterly), y = TotalSales )) +
+  geom_line(data = odp_quarterly[25:40,], aes(x = 1:nrow(odp_quarterly[25:40,]), 
+                                                  y = AR_scaled ), color = "#CC6666", size=1) +
+  labs(title = "Quarterly Sales with ODP Sales (20x USD)",  
+       x ="Time Aggregated by Quarters", y = "Total Sales (USD)") +
+  theme(axis.text.x = element_text(angle = 30)) +
+  scale_x_continuous(breaks = spacing, labels = dates[spacing])
 
 
 

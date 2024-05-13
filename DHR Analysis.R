@@ -264,8 +264,18 @@ harmonics <- fourier(sales_full, K = 6)
 # Fit a dynamic regression model to fit. Set xreg equal to harmonics and 
 # seasonal to FALSE because seasonality is handled by the regressors.
 fit <- auto.arima(sales_full, xreg = harmonics, seasonal = FALSE)
-
-
+#Total Total Predicted Yearly Sales
+model_fit <- as.data.frame(fit$fitted) 
+Year1 <- sum(model_fit$x[1:12])
+Year2 <- sum(model_fit$x[13:24])
+Year3 <- sum(model_fit$x[25:36])
+Year4 <- sum(model_fit$x[37:48])
+#plot 
+plot(c(Year1, Year2,Year3, Year4), type = "lines")
+#ggplot
+YearlySummary <- data.frame(years = 2015:2018, total_sales = c(Year1, Year2,Year3, Year4))
+ggplot(data = YearlySummary) + theme_minimal() + ggtitle("Predicted Yearly Sales over Time") +
+  geom_line(aes(x = years ,y =  total_sales)) + ylab("Total Predicted Yearly Sales") +xlab("Time")
 ##############################################################
 ## Plots
 
@@ -436,7 +446,54 @@ autoplot(fc) +  theme_minimal() +
 # Order chosen by AIC
 spec.ar(sales_full, main = "Sales Data \n AR (14) Spectrum" )
 
+# QUARTERLY SALES
 
+sales_full_quarterly <- ts(sales_quarterly$TotalSales, frequency = 4, start = c(2015,1)) #all data
+sales_full_quarterly_train <- ts(sales_quarterly$TotalSales[1:12], frequency = 4, start = c(2015,1)) #all data
+sales_full_quarterly_train2 <- ts(sales_quarterly$TotalSales[5:16], frequency = 4, start = c(2016,1)) #all data
 
+## define harmonics after determining K 
+harmonics <- fourier(sales_full_quarterly_train, K = 2)
 
+## Fit a dynamic regression model to fit. Set xreg equal to harmonics
+## and seasonal to FALSE because seasonality is handled by the regressors.
+fit <- auto.arima(sales_full_quarterly_train, xreg = harmonics, seasonal = FALSE)
+autoplot(fit)
 
+## Forecasts next 6 months
+newharmonics <- fourier(sales_full_quarterly_train, K = 2, h = 4)
+
+fc <- forecast(fit, xreg = newharmonics)
+autoplot(fc) + geom_line(data = fortify(sales_full_quarterly), mapping = aes(x = Index, y = Data, color = "Actual Data"),
+  color = "black", linetype = "dashed") + ggtitle("Forecasting with Quarterly Sales Data") + xlab("Time") + ylab("Total Sales")
+
+plot(fc, main = "Forecasting with Quarterly Sales Data", xlab = "Time", ylab = "Total Sales")
+lines(sales_full_quarterly, lty = 2)
+
+#Backcasting
+# define harmonics after determining K 
+harmonics <- fourier(sales_full_quarterly_train2, K = 2)
+
+# Fit a dynamic regression model to fit. Set xreg equal to harmonics and 
+# seasonal to FALSE because seasonality is handled by the regressors.
+fit <- auto.arima(sales_full_quarterly_train2, xreg = harmonics, seasonal = FALSE)
+
+# backcast prev 6 months
+f = frequency(sales_full_quarterly_train2)
+
+revx <- ts(rev(sales_full_quarterly_train2), frequency=f)
+fc <- forecast(auto.arima(revx), h = 4)
+#plot(fc)
+
+# Reverse time again
+h = 4
+fc$mean <- ts(rev(fc$mean), end=tsp(sales_full_quarterly_train2)[1] - 1/f, frequency=f)
+fc$upper <- fc$upper[h:1,]
+fc$lower <- fc$lower[h:1,]
+fc$x <- sales_full_quarterly_train2
+
+plot(fc, xlim=c(tsp(sales_full_quarterly_train2)[1]-h/f, tsp(sales_full_quarterly_train2)[2]), main = "Backcasting with Sales Data", xlab = "Time", ylab = "Total Sales") 
+lines(sales_full_quarterly, lty = 2)
+
+autoplot(fc) + geom_line(data = fortify(sales_full_quarterly), mapping = aes(x = Index, y = Data, color = "Actual Data"),
+                         color = "black", linetype = "dashed") + ggtitle("Forecasting with Quarterly Sales Data") + xlab("Time") + ylab("Total Sales")
